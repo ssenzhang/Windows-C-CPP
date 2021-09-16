@@ -11,7 +11,10 @@
 > C/C++-语言-将WChar_t视为内置类型  wchar_t和UNICODE对应
 > 链接器-系统-子系统 设置为窗口 (/SUBSYSTEM:WINDOWS)
 ************************/
-#include "windows.h"  //底层实现窗口的头文件
+#include <windows.h>  //底层实现窗口的头文件
+#include <tchar.h>
+
+#pragma comment(lib, "winmm")  // Winmm.lib
 
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 
@@ -23,25 +26,30 @@ int WINAPI WinMain(
 	LPSTR lpszCmdLine,         // char* argv	[]
 	int nCmdShow)              // 显示命令： 最大化，最小化，default...
 {
-	// 1.设计窗口  
-	WNDCLASS wc;
-	wc.style = 0;                                           // Class style 显示风格 0--default
-	wc.cbClsExtra = 0;                                      // Class extra bytes 类的额外的内存	
-	wc.cbWndExtra = 0;                                      // Window extra bytes 窗口额外的内存
-	wc.hbrBackground = (HBRUSH)GetStockObject(GRAY_BRUSH);	// Background color 设置背景
-	// wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-	wc.hCursor = LoadCursor(NULL, IDC_HAND);                // Cursor handle 设置光标，如果第一个参数为NULL代表使用系统提供的光标
-	wc.hIcon = LoadIcon(NULL, IDI_WINLOGO/*IDI_ERROR*/);    // Icon handle 左上角图标,，如果第一个参数为NULL使用系统默认图标
-    wc.hInstance = hInstance;                               // Instance handle 应用程序实例句柄，传入WinMain中的形参即可														
-	wc.lpfnWndProc = (WNDPROC)WndProc;                      // Window procedure address 回调函数，窗口过程，第6步使用													
-	wc.lpszClassName = TEXT("MyWndClass");                  // WNDCLASS name 指定窗口类名称
-	wc.lpszMenuName = NULL;                                 // Menu name 菜单名称
+	// 1.设计窗口
+	WNDCLASS wndclass;
+	wndclass.style = /*0*/CS_HREDRAW | CS_VREDRAW;                // Class style 显示风格 0--default
+	wndclass.cbClsExtra = 0;                                      // Class extra bytes 类的额外的内存	
+	wndclass.cbWndExtra = 0;                                      // Window extra bytes 窗口额外的内存
+	wndclass.hbrBackground = (HBRUSH)GetStockObject(GRAY_BRUSH);  // Background color 设置背景
+	// wndclass.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+	wndclass.hCursor = LoadCursor(NULL, IDC_HAND);                // Cursor handle 设置光标，如果第一个参数为NULL代表使用系统提供的光标
+	wndclass.hIcon = LoadIcon(NULL, IDI_WINLOGO/*IDI_ERROR*/);    // Icon handle 左上角图标,，如果第一个参数为NULL使用系统默认图标
+	wndclass.hInstance = hInstance;                               // Instance handle 应用程序实例句柄，传入WinMain中的形参即可														
+	wndclass.lpfnWndProc = (WNDPROC)WndProc;                      // Window procedure address 回调函数，窗口过程，第6步使用													
+	wndclass.lpszClassName = TEXT("MyWndClass");                  // WNDCLASS name 指定窗口类名称
+	wndclass.lpszMenuName = NULL;                                 // Menu name 菜单名称
 
     // 2.注册窗口类
 	// 窗口类定义了窗口的重要特性，如窗口过程地址、默认背景色以及图标等；这些属性通过一个WNDCALSS(wc)结构体的字段值定义，随后传给RegisterClass
 	// 当应用程序生成一个窗口时，必须指定一个窗口类，在该类能被使用之前，必须先对其进行注册；RegisterClass在程序开始即被调用
 	// WNDCLASS类型窗口类与C++中的窗口类不一样，WNDCLASS为RegisterClass注册的类，C++中的窗口类指MFC的CWnd类派生的类
-	RegisterClass(&wc);
+	if (!RegisterClass(&wndclass))
+	{
+		MessageBox(NULL, TEXT("This program requres Windows NT!"),
+			TEXT("MyWndClass"), MB_ICONERROR);
+		return 0;
+	}
 
 	// 3.创建窗口	
 	// 一旦WNDCLASS被注册，WinMain将调用CreateWindow生成应用程序的窗口
@@ -61,7 +69,8 @@ int WINAPI WinMain(
 	);
 
 	// 4.显示刷新
-	// 由于生成窗口时并未使用WS_VISIBLE, CreateWindow生成的窗口在屏幕上最初是不可见的；如果使用WS_VISIBLE则应该在CreateWindow中与WS_OVERLAPPEDWINDOW结合应用
+	// 由于生成窗口时并未使用WS_VISIBLE, CreateWindow生成的窗口在屏幕上最初是不可见的；
+	// 如果使用WS_VISIBLE则应该在CreateWindow中与WS_OVERLAPPEDWINDOW结合应用
 	// 以下两个函数可以使窗口可见，WM_PAINT消息处理程序立刻被调用
 	ShowWindow(hwnd, /*nCmdShow*/SW_SHOWNORMAL);
 	UpdateWindow(hwnd);
@@ -108,15 +117,22 @@ LRESULT CALLBACK WndProc(
 	WPARAM wParam,     // 键盘附加消息
 	LPARAM lParam)     // 鼠标附加消息
 {
-	TCHAR buf[256] = { 0 };
+	TCHAR buffer[256] = { 0 };
+	TCHAR sztemp[256] = { 0 };
+	PAINTSTRUCT ps;
+	HDC hdc;
+	POINT pt;
 
 	switch (message)
 	{
+	case WM_CREATE:
+		//PlaySound(TEXT("SystemStart"), NULL, SND_FILENAME | SND_ASYNC);  // system start sound
+		MessageBox(NULL, TEXT("The window is being created, please enjoy a piece of music!"), TEXT("WM_CREATE"), message);
+		PlaySound(TEXT("hellowin.wav"), NULL, SND_FILENAME | SND_ASYNC);
+		return 0;
 	case WM_PAINT:           // 绘图
-		PAINTSTRUCT ps;
-		HDC hdc;
 		hdc = BeginPaint(hwnd, &ps);   	// 获取设备环境句柄
-		TextOut(hdc, 0, 0, TEXT("Draw a ellipse:"), (int)strlen(TEXT("Draw a ellipse:")));
+		TextOut(hdc, 0, 0, TEXT("Draw a ellipse:"), (int)_tcscnlen(TEXT("Draw a ellipse:"), 256));
 		Ellipse(hdc, 0, 20, 200, 100);
 		EndPaint(hwnd, &ps);            // 释放设备环境句柄
 		return 0;
@@ -134,20 +150,21 @@ LRESULT CALLBACK WndProc(
 		Systems with multiple monitors can have negative x- and y- coordinates,
 		and LOWORD and HIWORD treat the coordinates as unsigned quantities.
 		*/
-		POINT pt;
 		// Just a Test, and it's not suggested
 		pt.x = LOWORD(lParam); // GET_X_LPARAM(lParam); "Windowsx.h"
 		pt.y = HIWORD(lParam); // GET_Y_LPARAM(lParam);
 
 		// wsprintf ==>sprintf(MBCS) or swprintf(UNICODE) 
-		wsprintf(buf, TEXT("POINT.X = %ld, POINT.Y = %ld"), pt.x, pt.y);
-		MessageBox(hwnd, buf, TEXT("WM_LBUTTONDOWN"), message);
+		memset(buffer, 0, sizeof(TCHAR) * 256);
+		wsprintf(buffer, TEXT("POINT.X = %ld, POINT.Y = %ld"), pt.x, pt.y);
+		MessageBox(hwnd, buffer, TEXT("WM_LBUTTONDOWN"), message);
 		return 0;
 	case WM_KEYDOWN:
-		TCHAR szTmp[32];
-		GetKeyNameText((long)lParam, szTmp, 32);
-		wsprintf(buf, TEXT("The %s was pressed down!"), szTmp);
-		MessageBox(hwnd, buf, TEXT("WM_KEYDOWM"), message);
+		memset(buffer, 0, sizeof(TCHAR)*256);
+		memset(sztemp, 0, sizeof(TCHAR)*256);
+		GetKeyNameText((long)lParam, sztemp, 256);
+		wsprintf(buffer, TEXT("The %s was pressed down!"), sztemp);
+		MessageBox(hwnd, buffer, TEXT("WM_KEYDOWM"), message);
 		return 0;
 	}
 
